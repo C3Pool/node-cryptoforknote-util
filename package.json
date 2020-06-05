@@ -1,0 +1,24 @@
+{
+  "name": "cryptoforknote-util",
+  "version": "7.0.2",
+  "main": "cryptoforknote-util",
+  "author": {
+    "name": "LucasJones",
+    "email": "lucasjonesdev@hotmail.co.uk"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/C3Pool/node-cryptoforknote-util.git"
+  },
+  "dependencies": {
+    "bindings": "*",
+    "nan": "^2.0.0"
+  },
+  "keywords": [
+    "cryptonight",
+    "cryptonote",
+    "forknote",
+    "bytecoin",
+    "monero"
+  ]
+}
