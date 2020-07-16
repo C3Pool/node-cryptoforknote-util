@@ -24,30 +24,39 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // 
 
-#pragma once
+
+#ifndef _CRYPTED_STORAGE_H_
+#define _CRYPTED_STORAGE_H_
+
+#include "cryptopp_helper.h"
 
 namespace epee
 {
+template<class t_base_storage, class crypt_provider, class t_key_provider>
+class crypted_storage: public t_base_storage
+{
+public: 
+	size_t	PackToSolidBuffer(std::string& targetObj)
+	{
+		size_t res = t_base_storage::PackToSolidBuffer(targetObj);
+		if(res <= 0)
+			return res;
+		
+		if(!crypt_provider::encrypt(targetObj, t_key_provider::get_storage_default_key()))
+			return 0;
 
-  template<class t_obj>
-  struct enableable
-  {
-    t_obj v;
-    bool enabled;
+		return targetObj.size();
+	}
 
-    enableable()
-      : v(t_obj()), enabled(true)
-    {	// construct from defaults
-    }
+	size_t		LoadFromSolidBuffer(const std::string& pTargetObj)
+	{
+		std::string buff_to_decrypt = pTargetObj;
+		if(crypt_provider::decrypt(buff_to_decrypt, t_key_provider::get_storage_default_key()))
+			return t_base_storage::LoadFromSolidBuffer(buff_to_decrypt);
 
-    enableable(const t_obj& _v)
-      : v(_v), enabled(true)
-    {	// construct from specified values
-    }
-
-    enableable(const enableable<t_obj>& _v)
-      : v(_v.v), enabled(_v.enabled)
-    {	// construct from specified values
-    }
-  };
+		return 0;
+	}
+};
 }
+
+#endif //_CRYPTED_STORAGE_H_

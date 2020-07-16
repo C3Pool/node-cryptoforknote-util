@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2019, The Monero Project
+// Copyright (c) 2019, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -25,22 +25,22 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// 
-// Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
-#pragma once
+#pragma once 
 
-#include <cstdint>
-#include <string>
+#include "int-util.h"
 
-namespace tools
-{
-  namespace base58
-  {
-    std::string encode(const std::string& data);
-    bool decode(const std::string& enc, std::string& data);
+template<typename T> T convert_swapper(T t) { return t; }
+template<> inline uint16_t convert_swapper(uint16_t t) { return SWAP16LE(t); }
+template<> inline int16_t convert_swapper(int16_t t) { return SWAP16LE((uint16_t&)t); }
+template<> inline uint32_t convert_swapper(uint32_t t) { return SWAP32LE(t); }
+template<> inline int32_t convert_swapper(int32_t t) { return SWAP32LE((uint32_t&)t); }
+template<> inline uint64_t convert_swapper(uint64_t t) { return SWAP64LE(t); }
+template<> inline int64_t convert_swapper(int64_t t) { return SWAP64LE((uint64_t&)t); }
+template<> inline double convert_swapper(double t) { union { uint64_t u; double d; } u; u.d = t; u.u = SWAP64LE(u.u); return u.d; }
 
-    std::string encode_addr(uint64_t tag, const std::string& data);
-    bool decode_addr(const std::string &addr, uint64_t& tag, std::string& data);
-  }
-}
+#if BYTE_ORDER == BIG_ENDIAN
+#define CONVERT_POD(x) convert_swapper(x)
+#else
+#define CONVERT_POD(x) (x)
+#endif

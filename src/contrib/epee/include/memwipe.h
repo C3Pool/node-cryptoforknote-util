@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2019, The Monero Project
+// Copyright (c) 2017-2019, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -30,17 +30,51 @@
 
 #pragma once
 
-#include <cstdint>
-#include <string>
+#ifdef __cplusplus
+#include <array>
 
-namespace tools
-{
-  namespace base58
-  {
-    std::string encode(const std::string& data);
-    bool decode(const std::string& enc, std::string& data);
+extern "C" {
+#endif
 
-    std::string encode_addr(uint64_t tag, const std::string& data);
-    bool decode_addr(const std::string &addr, uint64_t& tag, std::string& data);
-  }
+void *memwipe(void *src, size_t n);
+
+#ifdef __cplusplus
 }
+#endif
+
+#ifdef __cplusplus
+namespace tools {
+
+  /// Scrubs data in the contained type upon destruction.
+  ///
+  /// Primarily useful for making sure that private keys don't stick around in
+  /// memory after the objects that held them have gone out of scope.
+  template <class T>
+  struct scrubbed : public T {
+    using type = T;
+
+    ~scrubbed() {
+      scrub();
+    }
+
+    /// Destroy the contents of the contained type.
+    void scrub() {
+      static_assert(std::is_pod<T>::value,
+                    "T cannot be auto-scrubbed. T must be POD.");
+      static_assert(std::is_trivially_destructible<T>::value,
+                    "T cannot be auto-scrubbed. T must be trivially destructable.");
+      memwipe(this, sizeof(T));
+    }
+  };
+
+  template<typename T>
+  T& unwrap(scrubbed<T>& src) { return src; }
+
+  template<typename T>
+  const T& unwrap(scrubbed<T> const& src) { return src; }
+
+  template <class T, size_t N>
+  using scrubbed_arr = scrubbed<std::array<T, N>>;
+} // namespace tools
+
+#endif // __cplusplus

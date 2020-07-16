@@ -24,30 +24,45 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // 
 
-#pragma once
 
+#ifndef _GZIPPED_INMEMSTORAGE_H_
+#define _GZIPPED_INMEMSTORAGE_H_
+
+#include "zlib_helper.h"
 namespace epee
 {
+namespace StorageNamed
+{
 
-  template<class t_obj>
-  struct enableable
-  {
-    t_obj v;
-    bool enabled;
+	template<class t_base_storage>
+	class gziped_storage: public t_base_storage
+	{
+	public: 
+		size_t	PackToSolidBuffer(std::string& targetObj)
+		{
+			size_t res = t_base_storage::PackToSolidBuffer(targetObj);
+			if(res <= 0)
+				return res;
 
-    enableable()
-      : v(t_obj()), enabled(true)
-    {	// construct from defaults
-    }
+			if(!zlib_helper::pack(targetObj))
+				return 0;
+		
+			return targetObj.size();
+		}
 
-    enableable(const t_obj& _v)
-      : v(_v), enabled(true)
-    {	// construct from specified values
-    }
+		size_t		LoadFromSolidBuffer(const std::string& pTargetObj)
+		{
+			std::string buff_to_ungzip = pTargetObj;
+			if(zlib_helper::unpack(buff_to_ungzip))
+				return t_base_storage::LoadFromSolidBuffer(buff_to_ungzip);
 
-    enableable(const enableable<t_obj>& _v)
-      : v(_v.v), enabled(_v.enabled)
-    {	// construct from specified values
-    }
-  };
+			return 0;
+		}
+
+	private:
+	};
+
 }
+}
+
+#endif 

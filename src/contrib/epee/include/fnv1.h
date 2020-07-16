@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2019, The Monero Project
+// Copyright (c) 2018, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -25,22 +25,21 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// 
-// Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #pragma once
 
-#include <cstdint>
-#include <string>
-
-namespace tools
+namespace epee
 {
-  namespace base58
-  {
-    std::string encode(const std::string& data);
-    bool decode(const std::string& enc, std::string& data);
 
-    std::string encode_addr(uint64_t tag, const std::string& data);
-    bool decode_addr(const std::string &addr, uint64_t& tag, std::string& data);
+namespace fnv
+{
+  inline uint64_t FNV1a(const char *ptr, size_t sz)
+  {
+    uint64_t h = 0xcbf29ce484222325;
+    for (size_t i = 0; i < sz; ++i)
+      h = (h ^ *(const uint8_t*)ptr++) * 0x100000001b3;
+    return h;
   }
+}
+
 }
