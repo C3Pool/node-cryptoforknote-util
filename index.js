@@ -63,11 +63,12 @@ const diff1 = 0x00000000ff000000000000000000000000000000000000000000000000000000
 module.exports.RavenBlockTemplate = function(rpcData, poolAddress) {
   const poolAddrHash = bitcoin.address.fromBase58Check(poolAddress).hash;
   let txCoinbase = new bitcoin.Transaction();
+  let bytesHeight;
   { // input for coinbase tx
     let blockHeightSerial = rpcData.height.toString(16).length % 2 === 0 ?
-                            rpcData.height.toString(16) :
+                                  rpcData.height.toString(16) :
                             '0' + rpcData.height.toString(16);
-    const bytesHeight = Math.ceil((rpcData.height << 1).toString(2).length / 8);
+    bytesHeight = Math.ceil((rpcData.height << 1).toString(2).length / 8);
     const lengthDiff  = blockHeightSerial.length/2 - bytesHeight;
     for (let i = 0; i < lengthDiff; i++) blockHeightSerial = blockHeightSerial + '00';
     const serializedBlockHeight = new Buffer.concat([
@@ -80,7 +81,7 @@ module.exports.RavenBlockTemplate = function(rpcData, poolAddress) {
       // will be used for our reserved_offset extra_nonce
       new Buffer('0000000000000000000000000000000000000000000000000000000000000000', 'hex'),
       0xFFFFFFFF, 0xFFFFFFFF,
-      new Buffer.concat([serializedBlockHeight, Buffer('6b6177706f77', 'hex')])
+      new Buffer.concat([serializedBlockHeight, Buffer('CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC', 'hex')]) // 17 bytes
     );
 
     txCoinbase.addOutput(scriptCompile(poolAddrHash), Math.floor(rpcData.coinbasevalue));
@@ -104,8 +105,8 @@ module.exports.RavenBlockTemplate = function(rpcData, poolAddress) {
   
   let blob = new Buffer.concat([
     header, // 80 bytes
-    new Buffer('EEEEEEEEEEEEEEEE', 'hex'), // 8 bytes
-    new Buffer('EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE', 'hex'), // 32 bytes
+    new Buffer('AAAAAAAAAAAAAAAA', 'hex'), // 8 bytes
+    new Buffer('BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB', 'hex'), // 32 bytes
     varuint.encode(rpcData.transactions.length + 1, new Buffer(varuint.encodingLength(rpcData.transactions.length + 1)), 0)
   ]);
   const offset1 = blob.length; 
@@ -135,7 +136,9 @@ module.exports.RavenBlockTemplate = function(rpcData, poolAddress) {
 
   return {
     blocktemplate_blob: blob.toString('hex'),
-    reserved_offset:    offset1 + 4 /* txCoinbase.version */ + 1 /* txCoinbase.vinLen */,
+    // reserved_offset to CCCCCC....
+    reserved_offset:    offset1 + 4 /* txCoinbase.version */ + 1 /* vinLen */  + 32 /* hash */ + 4 /* index  */ +
+                        1 /* vScript len */ + 1 /* coinbase height len */ + bytesHeight + 1 /* trailing zero byte */,
     seed_hash:          last_seed_hash.toString('hex'),
     difficulty:         difficulty,
     height:             rpcData.height,
