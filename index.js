@@ -6,8 +6,6 @@ const bitcoin = require('bitcoinjs-lib');
 const varuint = require('varuint-bitcoin');
 const crypto  = require('crypto');
 const fastMerkleRoot = require('merkle-lib/fastRoot');
-const promise = require('promise');
-const merklebitcoin = promise.denodeify(require('merkle-bitcoin'));
 
 function scriptCompile(addrHash) {
   return bitcoin.script.compile([
@@ -25,15 +23,6 @@ function reverseBuffer(buff) {
   return reversed;
 }
 
-function getMerkleRoot(rpcData, generateTxRaw) {
-  hashes = [ reverseBuffer(new Buffer(generateTxRaw, 'hex')).toString('hex') ];
-  rpcData.transactions.forEach(function (value) {
-    hashes.push(value.txid ? value.txid : value.hash);
-  });
-  if (hashes.length === 1) return hashes[0];
-  return Object.values(merklebitcoin(hashes))[2].root;
-}
-
 function txesHaveWitnessCommit(transactions) {
   return (
     transactions instanceof Array &&
@@ -47,12 +36,20 @@ function txesHaveWitnessCommit(transactions) {
   );
 }
 
-function getMerkleRoot2(transactions) {
-  if (transactions.length === 0) return null;
+function sha256(buffer) {
+  return crypto.createHash('sha256').update(buffer).digest();
+};
+
+function hash256(buffer) {
+  return sha256(sha256(buffer));
+};
+
+function getMerkleRoot(transactions) {
+  if (transactions.length === 0) return new Buffer('0000000000000000000000000000000000000000000000000000000000000000', 'hex')
   const forWitness = txesHaveWitnessCommit(transactions);
   const hashes = transactions.map(transaction => transaction.getHash(forWitness));
-  const hash256 = function (buffer) { return crypto.createHash('sha256').update(buffer).digest(); };
   const rootHash = fastMerkleRoot(hashes, hash256);
+  console.log(forWitness);
   return forWitness ? hash256(Buffer.concat([rootHash, transactions[0].ins[0].witness[0]])) : rootHash;
 }
 
@@ -62,6 +59,7 @@ const diff1 = 0x00000000ff000000000000000000000000000000000000000000000000000000
 
 module.exports.RavenBlockTemplate = function(rpcData, poolAddress) {
   const poolAddrHash = bitcoin.address.fromBase58Check(poolAddress).hash;
+
   let txCoinbase = new bitcoin.Transaction();
   let bytesHeight;
   { // input for coinbase tx
@@ -90,14 +88,13 @@ module.exports.RavenBlockTemplate = function(rpcData, poolAddress) {
       txCoinbase.addOutput(new Buffer(rpcData.default_witness_commitment, 'hex'), 0);
     }
   }
-  const merkleRoot = getMerkleRoot(rpcData, txCoinbase.getHash().toString('hex'));
 
   let header = new Buffer(80);
   { let position = 0;
     header.writeUInt32BE(rpcData.height, position, 4);                  // height         42-46
     header.write(rpcData.bits, position += 4, 4, 'hex');                // bits           47-50
     header.writeUInt32BE(rpcData.curtime, position += 4, 4, 'hex');     // nTime          51-54
-    header.write(merkleRoot, position += 4, 32, 'hex');                 // merkelRoot     55-87
+    header.write('DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD', position += 4, 32, 'hex');                 // merkelRoot     55-87
     header.write(rpcData.previousblockhash, position += 32, 32, 'hex'); // prevblockhash  88-120
     header.writeUInt32BE(rpcData.version, position += 32, 4);           // version        121-153
     header = reverseBuffer(header);
@@ -146,22 +143,27 @@ module.exports.RavenBlockTemplate = function(rpcData, poolAddress) {
   };
 };
 
-module.exports.convertRavenBlob = function(blobBuffer) {
-  let header = blobBuffer.slice(0, 80); // header
+function update_merkle_root_hash(blob_in, blob_out) {
   let offset = 80 + 8 + 32;
-  const nTransactions = varuint.decode(blobBuffer, offset);
+  const nTransactions = varuint.decode(blob_in, offset);
   offset += varuint.decode.bytes;
   let transactions = [];
   for (let i = 0; i < nTransactions; ++i) {
-    const tx = bitcoin.Transaction.fromBuffer(blobBuffer.slice(offset), true);
+    const tx = bitcoin.Transaction.fromBuffer(blob_in.slice(offset), true);
     transactions.push(tx);
     offset += tx.byteLength();
   }
-  getMerkleRoot2(transactions).copy(header, 4 + 32);
-  return reverseBuffer(crypto.createHash('sha256').update(header).digest());
+  getMerkleRoot(transactions).copy(blob_out, 4 + 32);
+};
+
+module.exports.convertRavenBlob = function(blobBuffer) {
+  let header = blobBuffer.slice(0, 80);
+  update_merkle_root_hash(blobBuffer, header);
+  return reverseBuffer(hash256(header));
 };
 
 module.exports.constructNewRavenBlob = function(blockTemplate, nonceBuff, mixhashBuff) {
+  update_merkle_root_hash(blockTemplate, blockTemplate);
   nonceBuff.copy  (blockTemplate, 80, 0, 8);
   mixhashBuff.copy(blockTemplate, 88, 0, 32);
   return blockTemplate;
