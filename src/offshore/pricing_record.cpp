@@ -32,11 +32,6 @@
 #include "serialization/keyvalue_serialization.h"
 #include "storages/portable_storage.h"
 
-#include "string_tools.h"
-
-#define PRICING_RECORD_VALID_BLOCKS                     10
-#define PRICING_RECORD_VALID_TIME_DIFF_FROM_BLOCK       120  // seconds
-
 namespace offshore
 {
 
@@ -132,8 +127,8 @@ namespace offshore
       unused3 = in.unused3;
       timestamp = in.timestamp;
       for (unsigned int i = 0; i < in.signature.length(); i += 2) {
-        std::string byteString = in.signature.substr(i, 2);
-        signature[i>>1] = (char) strtol(byteString.c_str(), NULL, 16);
+	std::string byteString = in.signature.substr(i, 2);
+	signature[i>>1] = (char) strtol(byteString.c_str(), NULL, 16);
       }
       return true;
     }
@@ -199,7 +194,7 @@ namespace offshore
     return *this;
   }
 
-  uint64_t pricing_record::operator[](const std::string& asset_type) const
+  uint64_t pricing_record::operator[](const std::string asset_type) const
   {
     if (asset_type == "XHV") {
       return 1000000000000;
@@ -256,45 +251,17 @@ namespace offshore
 	    !::memcmp(signature, other.signature, sizeof(signature)));
   }
 
-  bool pricing_record::empty() const noexcept
+  bool pricing_record::is_empty() const noexcept
   {
     const pricing_record empty_pr = offshore::pricing_record();
     return (*this).equal(empty_pr);
   }
 
-  bool pricing_record::verifySignature() const 
+  bool pricing_record::verifySignature(EVP_PKEY* public_key) const noexcept
   {
-    // Oracle public keys
-    std::string const mainnet_public_key = "-----BEGIN PUBLIC KEY-----\n"
-      "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5YBxWx1AZCA9jTUk8Pr2uZ9jpfRt\n"
-      "KWv3Vo1/Gny+1vfaxsXhBQiG1KlHkafNGarzoL0WHW4ocqaaqF5iv8i35A==\n"
-      "-----END PUBLIC KEY-----\n";
-    std::string const testnet_public_key = "-----BEGIN PUBLIC KEY-----\n"
-      "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEtWqvQh7OdXrdgXcDeBMRVfLWTW3F\n"
-      "wByeoVJFBfZymScJIJl46j66xG6ngnyj4ai4/QPFnSZ1I9jjMRlTWC4EPA==\n"
-      "-----END PUBLIC KEY-----\n";
-    std::string const stagenet_public_key = "-----BEGIN PUBLIC KEY-----\n"
-      "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEtWqvQh7OdXrdgXcDeBMRVfLWTW3F\n"
-      "wByeoVJFBfZymScJIJl46j66xG6ngnyj4ai4/QPFnSZ1I9jjMRlTWC4EPA==\n"
-      "-----END PUBLIC KEY-----\n";
-
-    // Comment out all but 1 of the following lines to select the correct Oracle PK
-    std::string const public_key = mainnet_public_key;
-    //std::string const public_key = testnet_public_key;
-    //std::string const public_key = stagenet_public_key;
-    
-    CHECK_AND_ASSERT_THROW_MES(!public_key.empty(), "Pricing record verification failed. NULL public key. PK Size: " << public_key.size()); // TODO: is this necessary or the one below already covers this case, meannin it will produce empty pubkey?
-    
-    // extract the key
-    EVP_PKEY* pubkey;
-    BIO* bio = BIO_new_mem_buf(public_key.c_str(), public_key.size());
-    if (!bio) {
-      return false;
-    }
-    pubkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
-    BIO_free(bio);
-    CHECK_AND_ASSERT_THROW_MES(pubkey != NULL, "Pricing record verification failed. NULL public key.");
-
+    // Sanity check - accept empty pricing records
+    if ((*this).is_empty())
+      return true;
 
     // Convert our internal 64-byte binary representation into 128-byte hex string
     std::string sig_hex;
@@ -355,4 +322,65 @@ namespace offshore
     oss << "}";
     std::string message = oss.str();    
 
-    // Convert signature from hex-encoded to 
+    // Convert signature from hex-encoded to binary
+    std::string compact;
+    for (unsigned int i = 0; i < sig_rebuilt.length(); i += 2) {
+      std::string byteString = sig_rebuilt.substr(i, 2);
+      char byte = (char) strtol(byteString.c_str(), NULL, 16);
+      compact += (byte);
+    }
+
+    // Check to see if we have been passed a public key to use
+    EVP_PKEY* pubkey = NULL;
+    if (public_key) {
+
+      // Take a copy for local use
+      pubkey = public_key;
+      
+    } else {
+      
+      // No public key provided - failover to embedded key
+      static const char public_key[] = "-----BEGIN PUBLIC KEY-----\n"
+	"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5YBxWx1AZCA9jTUk8Pr2uZ9jpfRt\n"
+	"KWv3Vo1/Gny+1vfaxsXhBQiG1KlHkafNGarzoL0WHW4ocqaaqF5iv8i35A==\n"
+	"-----END PUBLIC KEY-----\n";
+    
+      BIO* bio = BIO_new_mem_buf(public_key, (int)sizeof(public_key));
+      if (!bio) {
+	return false;
+      }
+      pubkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+      BIO_free(bio);
+    }
+    assert(pubkey != NULL);
+
+    // Create a verify digest from the message
+    EVP_MD_CTX *ctx = EVP_MD_CTX_create();
+    int ret = 0;
+    if (ctx) {
+      ret=EVP_DigestVerifyInit(ctx, NULL, EVP_sha256(), NULL, pubkey);
+      if (ret == 1) {
+	ret=EVP_DigestVerifyUpdate(ctx, message.data(), message.length());
+	if (ret == 1) {
+	  ret=EVP_DigestVerifyFinal(ctx, (const unsigned char *)compact.data(), compact.length());
+	}
+      }
+    }
+    // Cleanup the context we created
+    EVP_MD_CTX_destroy(ctx);
+
+    // Was the key provided by the caller?
+    if (pubkey != public_key) {
+      // Cleanup the openssl stuff
+      EVP_PKEY_free(pubkey);
+    }
+    
+    if (ret == 1)
+      return true;
+
+    // Get the errors from OpenSSL
+    //ERR_print_errors_fp (stderr);
+  
+    return false;
+  }
+}
