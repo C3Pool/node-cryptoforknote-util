@@ -1,6 +1,6 @@
 {
   "name": "cryptoforknote-util",
-  "version": "10.0.0",
+  "version": "10.0.4",
   "main": "cryptoforknote-util",
   "author": {
     "name": "LucasJones",
@@ -13,7 +13,7 @@
   "dependencies": {
     "promise": "*",
     "bindings": "*",
-    "nan": "^2.0.0",
+    "nan": "^2.14.2",
     "bignum": "^0.13.1",
     "sha3": "*",
     "varuint-bitcoin": "^1.0.4",
