@@ -199,4 +199,4 @@ module.exports.ErgBlockTemplate = function(rpcData) {
     difficulty:         difficulty,
     height:             parseInt(rpcData.h)
   };
-}; 
+};
