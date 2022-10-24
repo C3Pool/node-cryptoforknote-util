@@ -1,6 +1,6 @@
 {
   "name": "cryptoforknote-util",
-  "version": "11.1.0",
+  "version": "12.0.0",
   "main": "cryptoforknote-util",
   "author": {
     "name": "LucasJones",
@@ -19,7 +19,7 @@
     "base58-native": "*",
     "varuint-bitcoin": "^1.0.4",
     "merkle-lib": "^2.0.10",
-    "bitcoinjs-lib": "git+https://github.com/MoneroOcean/bitcoinjs-lib.git"
+    "bitcoinjs-lib": "git+https://github.com/C3Pool/bitcoinjs-lib.git"
   },
   "keywords": [
     "cryptonight",
