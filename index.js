@@ -166,18 +166,7 @@ module.exports.RavenBlockTemplate = function(rpcData, poolAddress) {  //add neox
 
   let txCoinbase = new bitcoin.Transaction();
   let bytesHeight;
-    //判断是否有rpcData.CommunityAutonomousAddress 有的话 说明是neox或者mewc
-    if (undefined!==rpcData.CommunityAutonomousAddress&&"undefined"!==rpcData.CommunityAutonomousAddress
-        &&""!==rpcData.CommunityAutonomousAddress){
 
-        var strCommunityAutonomousAddress 		= rpcData.CommunityAutonomousAddress;
-        var strCommunityAutonomousAddressHash 	= bitcoin.address.fromBase58Check(strCommunityAutonomousAddress).hash;
-        //console.log("strCommunityAutonomousAddress",strCommunityAutonomousAddress)
-        txCoinbase.addOutput(
-            scriptCompile(strCommunityAutonomousAddressHash),
-            Math.floor(rpcData.CommunityAutonomousValue)
-        );
-    }
   { // input for coinbase tx
     let blockHeightSerial = rpcData.height.toString(16).length % 2 === 0 ?
                                   rpcData.height.toString(16) :
@@ -203,6 +192,19 @@ module.exports.RavenBlockTemplate = function(rpcData, poolAddress) {  //add neox
     );
 
     txCoinbase.addOutput(scriptCompile(poolAddrHash), Math.floor(rpcData.coinbasevalue));
+
+      //判断是否有rpcData.CommunityAutonomousAddress 有的话 说明是neox或者mewc
+      if (undefined!==rpcData.CommunityAutonomousAddress&&"undefined"!==rpcData.CommunityAutonomousAddress
+          &&""!==rpcData.CommunityAutonomousAddress){
+
+          var strCommunityAutonomousAddress 		= rpcData.CommunityAutonomousAddress;
+          var strCommunityAutonomousAddressHash 	= bitcoin.address.fromBase58Check(strCommunityAutonomousAddress).hash;
+          //console.log("strCommunityAutonomousAddress",strCommunityAutonomousAddress)
+          txCoinbase.addOutput(
+              scriptCompile(strCommunityAutonomousAddressHash),
+              Math.floor(rpcData.CommunityAutonomousValue)
+          );
+      }
 
     if (rpcData.default_witness_commitment) {
       txCoinbase.addOutput(Buffer.from(rpcData.default_witness_commitment, 'hex'), 0);
