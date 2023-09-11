@@ -64,109 +64,12 @@ module.exports.baseDiff = function() {
 module.exports.baseRavenDiff = function() {
   return parseInt('0x00000000ff000000000000000000000000000000000000000000000000000000');
 };
-module.exports.NeoxaBlockTemplate = function(rpcData, poolAddress) {
-    const poolAddrHash = bitcoin.address.fromBase58Check(poolAddress).hash;
 
-    let txCoinbase = new bitcoin.Transaction();
-    let bytesHeight;
-    { // input for coinbase tx
-        let blockHeightSerial = rpcData.height.toString(16).length % 2 === 0 ?
-            rpcData.height.toString(16) :
-            '0' + rpcData.height.toString(16);
-        bytesHeight = Math.ceil((rpcData.height << 1).toString(2).length / 8);
-        const lengthDiff  = blockHeightSerial.length/2 - bytesHeight;
-        for (let i = 0; i < lengthDiff; i++) blockHeightSerial = blockHeightSerial + '00';
-        const serializedBlockHeight = Buffer.concat([
-            Buffer.from('0' + bytesHeight, 'hex'),
-            reverseBuffer(Buffer.from(blockHeightSerial, 'hex')),
-            Buffer.from('00', 'hex') // OP_0
-        ]);
-
-        //strCommunityAutonomousAddress 10% of coinbase
-        var strCommunityAutonomousAddress 		= rpcData.CommunityAutonomousAddress;
-        var strCommunityAutonomousAddressHash 	= bitcoin.address.fromBase58Check(strCommunityAutonomousAddress).hash;
-        txCoinbase.addOutput(
-            scriptCompile(strCommunityAutonomousAddressHash),
-            Math.floor(rpcData.CommunityAutonomousValue)
-        );
-
-
-
-
-        txCoinbase.addInput(
-            // will be used for our reserved_offset extra_nonce
-            Buffer.from('0000000000000000000000000000000000000000000000000000000000000000', 'hex'),
-            0xFFFFFFFF, 0xFFFFFFFF,
-            Buffer.concat([serializedBlockHeight, Buffer.alloc(17, 0xCC)]) // 17 bytes
-        );
-
-        txCoinbase.addOutput(scriptCompile(poolAddrHash), Math.floor(rpcData.coinbasevalue));
-
-        if (rpcData.default_witness_commitment) {
-            txCoinbase.addOutput(Buffer.from(rpcData.default_witness_commitment, 'hex'), 0);
-        }
-    }
-
-    let header = Buffer.alloc(80);
-    { let position = 0;
-        header.writeUInt32BE(rpcData.height, position, 4);                  // height         42-46
-        header.write(rpcData.bits, position += 4, 4, 'hex');                // bits           47-50
-        header.writeUInt32BE(rpcData.curtime, position += 4, 4, 'hex');     // nTime          51-54
-        header.write('DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD', position += 4, 32, 'hex');                 // merkelRoot     55-87
-        header.write(rpcData.previousblockhash, position += 32, 32, 'hex'); // prevblockhash  88-120
-        header.writeUInt32BE(rpcData.version, position += 32, 4);           // version        121-153
-        header = reverseBuffer(header);
-    }
-
-    let blob = Buffer.concat([
-        header, // 80 bytes
-        Buffer.from('AAAAAAAAAAAAAAAA', 'hex'), // 8 bytes
-        Buffer.from('BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB', 'hex'), // 32 bytes
-        varuint.encode(rpcData.transactions.length + 1, Buffer.alloc(varuint.encodingLength(rpcData.transactions.length + 1)), 0)
-    ]);
-    const offset1 = blob.length;
-    blob = Buffer.concat([ blob, Buffer.from(txCoinbase.toHex(), 'hex') ]);
-
-    rpcData.transactions.forEach(function (value) {
-        blob = Buffer.concat([ blob, Buffer.from(value.data, 'hex') ]);
-    });
-
-    const EPOCH_LENGTH = 7500;
-    const epoch_number = Math.floor(rpcData.height / EPOCH_LENGTH);
-    if (last_epoch_number !== epoch_number) {
-        let sha3 = new SHA3.SHA3Hash(256);
-        if (last_epoch_number && last_epoch_number + 1 === epoch_number) {
-            last_seed_hash = sha3.update(last_seed_hash).digest();
-        } else {
-            last_seed_hash = Buffer.alloc(32, 0);
-            for (let i = 0; i < epoch_number; i++) {
-                last_seed_hash = sha3.update(last_seed_hash).digest();
-                sha3.reset();
-            }
-        }
-        last_epoch_number = epoch_number;
-    }
-
-    const difficulty = parseFloat((module.exports.baseRavenDiff() / bignum(rpcData.target, 16).toNumber()).toFixed(9));
-
-    return {
-        blocktemplate_blob: blob.toString('hex'),
-        // reserved_offset to CCCCCC....
-        reserved_offset:    offset1 + 4 /* txCoinbase.version */ + 1 /* vinLen */  + 32 /* hash */ + 4 /* index  */ +
-            1 /* vScript len */ + 1 /* coinbase height len */ + bytesHeight + 1 /* trailing zero byte */,
-        seed_hash:          last_seed_hash.toString('hex'),
-        difficulty:         difficulty,
-        height:             rpcData.height,
-        bits:               rpcData.bits,
-        prev_hash:          rpcData.previousblockhash,
-    };
-};
-module.exports.RavenBlockTemplate = function(rpcData, poolAddress) {  //add neox&mewc CommunityAutonomousAddres
+module.exports.RavenBlockTemplate = function(rpcData, poolAddress) {
   const poolAddrHash = bitcoin.address.fromBase58Check(poolAddress).hash;
 
   let txCoinbase = new bitcoin.Transaction();
   let bytesHeight;
-
   { // input for coinbase tx
     let blockHeightSerial = rpcData.height.toString(16).length % 2 === 0 ?
                                   rpcData.height.toString(16) :
@@ -180,10 +83,6 @@ module.exports.RavenBlockTemplate = function(rpcData, poolAddress) {  //add neox
       Buffer.from('00', 'hex') // OP_0
     ]);
 
-
-
-
-
     txCoinbase.addInput(
       // will be used for our reserved_offset extra_nonce
       Buffer.from('0000000000000000000000000000000000000000000000000000000000000000', 'hex'),
@@ -193,18 +92,10 @@ module.exports.RavenBlockTemplate = function(rpcData, poolAddress) {  //add neox
 
     txCoinbase.addOutput(scriptCompile(poolAddrHash), Math.floor(rpcData.coinbasevalue));
 
-      //判断是否有rpcData.CommunityAutonomousAddress 有的话 说明是neox或者mewc
-      if (undefined!==rpcData.CommunityAutonomousAddress&&"undefined"!==rpcData.CommunityAutonomousAddress
-          &&""!==rpcData.CommunityAutonomousAddress){
-
-          var strCommunityAutonomousAddress 		= rpcData.CommunityAutonomousAddress;
-          var strCommunityAutonomousAddressHash 	= bitcoin.address.fromBase58Check(strCommunityAutonomousAddress).hash;
-          //console.log("strCommunityAutonomousAddress",strCommunityAutonomousAddress)
-          txCoinbase.addOutput(
-              scriptCompile(strCommunityAutonomousAddressHash),
-              Math.floor(rpcData.CommunityAutonomousValue)
-          );
-      }
+    // For CLORE
+    if (rpcData.CommunityAutonomousAddress && rpcData.CommunityAutonomousValue) {
+      txCoinbase.addOutput(scriptCompile(bitcoin.address.fromBase58Check(rpcData.CommunityAutonomousAddress).hash), Math.floor(rpcData.CommunityAutonomousValue));
+    }
 
     if (rpcData.default_witness_commitment) {
       txCoinbase.addOutput(Buffer.from(rpcData.default_witness_commitment, 'hex'), 0);

@@ -109,6 +109,13 @@ inline bool do_serialize(Archive &ar, bool &v)
     ar.serialize_varint(f); \
     if (!ar.stream().good()) return false; \
   } while(0);
+#define VERSION_FIELD(v)                       \
+  uint32_t version = v;                                \
+  do {                                         \
+    ar.tag("version");                         \
+    ar.serialize_varint(version);              \
+    if (!ar.stream().good()) return false;             \
+  } while(0);
 
 namespace serialization {
   namespace detail

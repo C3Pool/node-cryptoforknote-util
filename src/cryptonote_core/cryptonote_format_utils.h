@@ -78,12 +78,9 @@ namespace cryptonote
   bool get_block_header_hash(const block& b, crypto::hash& res);
   bool get_bytecoin_block_longhash(const block& blk, crypto::hash& res);
   bool parse_and_validate_block_from_blob(const blobdata& b_blob, block& b);
-  bool get_inputs_money_amount(const transaction& tx, uint64_t& money);
   std::map<std::string, uint64_t> get_outs_money_amount(const transaction& tx);
-  bool check_inputs_types_supported(const transaction& tx);
   bool check_outs_valid(const transaction& tx);
 
-  uint64_t get_block_height(const block& b);
   std::vector<uint64_t> relative_output_offsets_to_absolute(const std::vector<uint64_t>& off);
   std::vector<uint64_t> absolute_output_offsets_to_relative(const std::vector<uint64_t>& off);
   //---------------------------------------------------------------
