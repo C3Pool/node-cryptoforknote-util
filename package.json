@@ -1,7 +1,6 @@
 {
   "name": "cryptoforknote-util",
-  "version": "15.0.1",
-  "main": "cryptoforknote-util",
+  "version": "15.3.2",
   "author": {
     "name": "LucasJones",
     "email": "lucasjonesdev@hotmail.co.uk"
@@ -17,6 +16,7 @@
     "bignum": "^0.13.1",
     "sha3": "*",
     "base58-native": "*",
+    "bech32": "*",
     "varuint-bitcoin": "^1.0.4",
     "merkle-lib": "^2.0.10",
     "bitcoinjs-lib": "git+https://github.com/C3Pool/bitcoinjs-lib.git"

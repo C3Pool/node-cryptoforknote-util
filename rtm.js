@@ -1,5 +1,6 @@
 const bignum  = require('bignum');
 const base58  = require('base58-native');
+const bech32  = require('bech32');
 const bitcoin = require('bitcoinjs-lib');
 
 const diff1 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
@@ -149,8 +150,11 @@ function getTransactionBuffers(txs) {
 
 function addressToScript(addr) {
   const decoded = base58.decode(addr);
-  if (decoded.length != 25)  throw new Error('Invalid address length for ' + addr);
-  if (!decoded) throw new Error('Base58 decode failed for ' + addr);
+  if (!decoded || decoded.length != 25) {
+    const decoded2 = Buffer.from(bech32.bech32.fromWords(bech32.bech32.decode(addr).words.slice(1)));
+    if (decoded2.length != 20) throw new Error('Invalid address ' + addr);
+    return Buffer.concat([Buffer.from([0x0, 0x14]), decoded2]);
+  }
   const pubkey = decoded.slice(1, -4);
   return Buffer.concat([Buffer.from([0x76, 0xa9, 0x14]), pubkey, Buffer.from([0x88, 0xac])]);
 }
@@ -220,7 +224,7 @@ module.exports.RtmBlockTemplate = function(rpcData, poolAddress) {
 
   const scriptSigPart1 = Buffer.concat([
     serializeNumber(rpcData.height),
-    Buffer.from(rpcData.coinbaseaux.flags, 'hex'),
+    Buffer.from(rpcData.coinbaseaux.flags ? rpcData.coinbaseaux.flags : "", 'hex'),
     serializeNumber(Date.now() / 1000 | 0),
     Buffer.from([extraNoncePlaceholderLength])
   ]);
@@ -244,10 +248,16 @@ module.exports.RtmBlockTemplate = function(rpcData, poolAddress) {
     // transaction output
     generateOutputTransactions(rpcData, poolAddress),
     // end transaction ouput
-    packUInt32LE(0), // txLockTime
-    varIntBuffer(rpcData.coinbase_payload.length / 2),
-    Buffer.from(rpcData.coinbase_payload, 'hex')
+    packUInt32LE(0) // txLockTime
   ]);
+
+  if (rpcData.coinbase_payload) {
+     blob2 = Buffer.concat([
+       blob2,
+       varIntBuffer(rpcData.coinbase_payload.length / 2),
+       Buffer.from(rpcData.coinbase_payload, 'hex')
+     ]);
+  }
 
   const prev_hash = reverseBuffer(Buffer.from(rpcData.previousblockhash, 'hex')).toString('hex');
   const version = packInt32LE(rpcData.version).toString('hex');
