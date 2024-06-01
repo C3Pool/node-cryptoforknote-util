@@ -149,7 +149,10 @@ function getTransactionBuffers(txs) {
 }
 
 function addressToScript(addr) {
-  const decoded = base58.decode(addr);
+  let decoded;
+  try {
+    decoded = base58.decode(addr);
+  } catch(err) {}
   if (!decoded || decoded.length != 25) {
     const decoded2 = Buffer.from(bech32.bech32.fromWords(bech32.bech32.decode(addr).words.slice(1)));
     if (decoded2.length != 20) throw new Error('Invalid address ' + addr);
@@ -159,7 +162,7 @@ function addressToScript(addr) {
   return Buffer.concat([Buffer.from([0x76, 0xa9, 0x14]), pubkey, Buffer.from([0x88, 0xac])]);
 }
 
-function createOutputTransaction(amount, payee, rewardToPool, reward, txOutputBuffers, payeeScript) {
+function createTransactionOutput(amount, payee, rewardToPool, reward, txOutputBuffers, payeeScript) {
   const payeeReward = amount;
   if (!payeeScript) payeeScript = addressToScript(payee);
   txOutputBuffers.push(Buffer.concat([
@@ -170,19 +173,25 @@ function createOutputTransaction(amount, payee, rewardToPool, reward, txOutputBu
   return { reward: reward - amount, rewardToPool: rewardToPool - amount };
 }
 
-function generateOutputTransactions(rpcData, poolAddress) {
+function generateTransactionOutputs(rpcData, poolAddress, is_witness) {
   let reward       = rpcData.coinbasevalue;
   let rewardToPool = reward;
   let txOutputBuffers = [];
 
+  if (rpcData.coinbasedevreward) {
+    const rewards = createTransactionOutput(rpcData.coinbasedevreward.value, rpcData.coinbasedevreward.address, rewardToPool, reward, txOutputBuffers, Buffer.from(rpcData.coinbasedevreward.scriptpubkey, 'hex'));
+    reward        = rewards.reward;
+    rewardToPool  = rewards.rewardToPool;
+  }
+
   if (rpcData.smartnode) {
     if (rpcData.smartnode.payee) {
-      const rewards = createOutputTransaction(rpcData.smartnode.amount, rpcData.smartnode.payee, rewardToPool, reward, txOutputBuffers);
+      const rewards = createTransactionOutput(rpcData.smartnode.amount, rpcData.smartnode.payee, rewardToPool, reward, txOutputBuffers);
       reward        = rewards.reward;
       rewardToPool  = rewards.rewardToPool;
     } else if (Array.isArray(rpcData.smartnode)) {
       for (let i in rpcData.smartnode) {
-        const rewards = createOutputTransaction(rpcData.smartnode[i].amount, rpcData.smartnode[i].payee, rewardToPool, reward, txOutputBuffers);
+        const rewards = createTransactionOutput(rpcData.smartnode[i].amount, rpcData.smartnode[i].payee, rewardToPool, reward, txOutputBuffers);
 	reward        = rewards.reward;
         rewardToPool  = rewards.rewardToPool;
       }
@@ -191,7 +200,7 @@ function generateOutputTransactions(rpcData, poolAddress) {
 
   if (rpcData.superblock) {
     for (let i in rpcData.superblock) {
-      const rewards = createOutputTransaction(rpcData.superblock[i].amount, rpcData.superblock[i].payee, rewardToPool, reward, txOutputBuffers);
+      const rewards = createTransactionOutput(rpcData.superblock[i].amount, rpcData.superblock[i].payee, rewardToPool, reward, txOutputBuffers);
       reward        = rewards.reward;
       rewardToPool  = rewards.rewardToPool;
     }
@@ -199,28 +208,28 @@ function generateOutputTransactions(rpcData, poolAddress) {
 
   if (rpcData.founder_payments_started && rpcData.founder) {
     const founderReward = rpcData.founder.amount || 0;
-    const rewards = createOutputTransaction(founderReward, rpcData.founder.payee, rewardToPool, reward, txOutputBuffers);
+    const rewards = createTransactionOutput(founderReward, rpcData.founder.payee, rewardToPool, reward, txOutputBuffers);
     reward        = rewards.reward;
     rewardToPool  = rewards.rewardToPool;
   }
 
-  createOutputTransaction(rewardToPool, null, rewardToPool, reward, txOutputBuffers, Buffer.from(addressToScript(poolAddress), "hex"));
+  createTransactionOutput(rewardToPool, null, rewardToPool, reward, txOutputBuffers, Buffer.from(addressToScript(poolAddress), "hex"));
 
-  if (rpcData.default_witness_commitment !== undefined) {
+  if (is_witness) {
     const witness_commitment = Buffer.from(rpcData.default_witness_commitment, 'hex');
-    txOutputBuffers.unshift(Buffer.concat([
-      packInt64LE(0),
+    txOutputBuffers.push(Buffer.concat([
+      varIntBuffer(1),
       varIntBuffer(witness_commitment.length),
       witness_commitment
     ]));
   }
 
-  return Buffer.concat([ varIntBuffer(txOutputBuffers.length), Buffer.concat(txOutputBuffers)]);
+  return Buffer.concat([ varIntBuffer(is_witness ? txOutputBuffers.length - 1 : txOutputBuffers.length), Buffer.concat(txOutputBuffers)]);
 }
 
 module.exports.RtmBlockTemplate = function(rpcData, poolAddress) {
   const extraNoncePlaceholderLength = 17;
-  const coinbaseVersion = Buffer.concat([packUInt16LE(3), packUInt16LE(5)]);
+  const coinbaseVersion = rpcData.coinbasedevreward ? Buffer.concat([packUInt16LE(1), packUInt16LE(0)]) : Buffer.concat([packUInt16LE(3), packUInt16LE(5)]);
 
   const scriptSigPart1 = Buffer.concat([
     serializeNumber(rpcData.height),
@@ -231,9 +240,12 @@ module.exports.RtmBlockTemplate = function(rpcData, poolAddress) {
 
   const scriptSigPart2 = serializeString('/nodeStratum/');
 
+  const is_witness = false; //rpcData.default_witness_commitment !== undefined;
+
   const blob1 = Buffer.concat([
     coinbaseVersion,
     // transaction input
+    Buffer.from(is_witness ? "0001" : "", 'hex'),
     varIntBuffer(1), // txInputsCount
     uint256BufferFromHash(""), // txInPrevOutHash
     packUInt32LE(Math.pow(2, 32) - 1), // txInPrevOutIndex
@@ -246,7 +258,7 @@ module.exports.RtmBlockTemplate = function(rpcData, poolAddress) {
     packUInt32LE(0), // txInSequence
     // end transaction input
     // transaction output
-    generateOutputTransactions(rpcData, poolAddress),
+    generateTransactionOutputs(rpcData, poolAddress, is_witness),
     // end transaction ouput
     packUInt32LE(0) // txLockTime
   ]);

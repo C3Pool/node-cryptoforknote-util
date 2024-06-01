@@ -46,12 +46,38 @@ function hash256(buffer) {
   return sha256(sha256(buffer));
 };
 
+function sha256_3(buffer) {
+  return crypto.createHash('sha3-256').update(buffer).digest();
+};
+
+function hash256_3(buffer) {
+  return sha256_3(sha256_3(buffer));
+};
+
+function transaction_hash(transaction, forWitness) {
+  if (forWitness && transaction.isCoinbase()) return Buffer.alloc(32, 0);
+  return hash256(transaction.__toBuffer(undefined, undefined, forWitness));
+}
+
+function transaction_hash3(transaction, forWitness) {
+  if (forWitness && transaction.isCoinbase()) return Buffer.alloc(32, 0);
+  return hash256_3(transaction.__toBuffer(undefined, undefined, forWitness));
+}
+
 function getMerkleRoot(transactions) {
   if (transactions.length === 0) return Buffer.from('0000000000000000000000000000000000000000000000000000000000000000', 'hex')
   const forWitness = txesHaveWitnessCommit(transactions);
-  const hashes = transactions.map(transaction => transaction.getHash(forWitness));
+  const hashes = transactions.map(transaction => transaction_hash(transaction, forWitness));
   const rootHash = fastMerkleRoot(hashes, hash256);
   return forWitness ? hash256(Buffer.concat([rootHash, transactions[0].ins[0].witness[0]])) : rootHash;
+}
+
+function getMerkleRoot3(transactions) {
+  if (transactions.length === 0) return Buffer.from('0000000000000000000000000000000000000000000000000000000000000000', 'hex')
+  const forWitness = txesHaveWitnessCommit(transactions);
+  const hashes = transactions.map(transaction => transaction_hash3(transaction, forWitness));
+  const rootHash = fastMerkleRoot(hashes, hash256_3);
+  return forWitness ? hash256_3(Buffer.concat([rootHash, transactions[0].ins[0].witness[0]])) : rootHash;
 }
 
 let last_epoch_number;
@@ -169,8 +195,24 @@ function update_merkle_root_hash(offset, payload, blob_in, blob_out) {
   getMerkleRoot(transactions).copy(blob_out, 4 + 32);
 };
 
+function update_merkle_root_hash3(offset, payload, blob_in, blob_out) {
+  const nTransactions = varuint.decode(blob_in, offset);
+  offset += varuint.decode.bytes;
+  let transactions = [];
+  for (let i = 0; i < nTransactions; ++i) {
+    const tx = bitcoin.Transaction.fromBuffer(blob_in.slice(offset), true, payload && i == 0);
+    transactions.push(tx);
+    offset += tx.byteLength();
+  }
+  getMerkleRoot3(transactions).copy(blob_out, 4 + 32);
+};
+
 module.exports.blockHashBuff = function(blobBuffer) {
   return reverseBuffer(hash256(blobBuffer));
+};
+
+module.exports.blockHashBuff3 = function(blobBuffer) {
+  return reverseBuffer(hash256_3(blobBuffer));
 };
 
 module.exports.convertRavenBlob = function(blobBuffer) {
@@ -221,8 +263,20 @@ module.exports.convertRtmBlob = function(blobBuffer) {
   return header;
 };
 
+module.exports.convertKcnBlob = function(blobBuffer) {
+  let header = blobBuffer.slice(0, 80);
+  update_merkle_root_hash3(80, false, blobBuffer, header);
+  return header;
+};
+
 module.exports.constructNewRtmBlob = function(blockTemplate, nonceBuff) {
   update_merkle_root_hash(80, true, blockTemplate, blockTemplate);
+  nonceBuff.copy(blockTemplate, 76, 0, 4);
+  return blockTemplate;
+};
+
+module.exports.constructNewKcnBlob = function(blockTemplate, nonceBuff) {
+  update_merkle_root_hash(80, false, blockTemplate, blockTemplate);
   nonceBuff.copy(blockTemplate, 76, 0, 4);
   return blockTemplate;
 };
