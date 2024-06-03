@@ -173,13 +173,13 @@ function createTransactionOutput(amount, payee, rewardToPool, reward, txOutputBu
   return { reward: reward - amount, rewardToPool: rewardToPool - amount };
 }
 
-function generateTransactionOutputs(rpcData, poolAddress, is_witness) {
-  let reward       = rpcData.coinbasevalue;
+function generateTransactionOutputs(rpcData, poolAddress) {
+  let reward       = rpcData.coinbasevalue + (rpcData.coinbasedevreward ? rpcData.coinbasedevreward.value : 0);
   let rewardToPool = reward;
   let txOutputBuffers = [];
 
   if (rpcData.coinbasedevreward) {
-    const rewards = createTransactionOutput(rpcData.coinbasedevreward.value, rpcData.coinbasedevreward.address, rewardToPool, reward, txOutputBuffers, Buffer.from(rpcData.coinbasedevreward.scriptpubkey, 'hex'));
+    const rewards = createTransactionOutput(rpcData.coinbasedevreward.value, null, rewardToPool, reward, txOutputBuffers, Buffer.from(rpcData.coinbasedevreward.scriptpubkey, 'hex'));
     reward        = rewards.reward;
     rewardToPool  = rewards.rewardToPool;
   }
@@ -215,16 +215,16 @@ function generateTransactionOutputs(rpcData, poolAddress, is_witness) {
 
   createTransactionOutput(rewardToPool, null, rewardToPool, reward, txOutputBuffers, Buffer.from(addressToScript(poolAddress), "hex"));
 
-  if (is_witness) {
-    const witness_commitment = Buffer.from(rpcData.default_witness_commitment, 'hex');
+  if (rpcData.default_witness_commitment) {
+    createTransactionOutput(0, null, rewardToPool, reward, txOutputBuffers, Buffer.from(rpcData.default_witness_commitment, 'hex'));
     txOutputBuffers.push(Buffer.concat([
       varIntBuffer(1),
-      varIntBuffer(witness_commitment.length),
-      witness_commitment
+      varIntBuffer(32),
+      Buffer.alloc(32, 0)
     ]));
   }
 
-  return Buffer.concat([ varIntBuffer(is_witness ? txOutputBuffers.length - 1 : txOutputBuffers.length), Buffer.concat(txOutputBuffers)]);
+  return Buffer.concat([ varIntBuffer(rpcData.default_witness_commitment ? txOutputBuffers.length - 1 : txOutputBuffers.length), Buffer.concat(txOutputBuffers)]);
 }
 
 module.exports.RtmBlockTemplate = function(rpcData, poolAddress) {
@@ -240,7 +240,7 @@ module.exports.RtmBlockTemplate = function(rpcData, poolAddress) {
 
   const scriptSigPart2 = serializeString('/nodeStratum/');
 
-  const is_witness = false; //rpcData.default_witness_commitment !== undefined;
+  const is_witness = rpcData.default_witness_commitment !== undefined;
 
   const blob1 = Buffer.concat([
     coinbaseVersion,

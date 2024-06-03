@@ -64,9 +64,9 @@ function transaction_hash3(transaction, forWitness) {
   return hash256_3(transaction.__toBuffer(undefined, undefined, forWitness));
 }
 
-function getMerkleRoot(transactions, transaction_hash_func) {
+function getMerkleRoot(transactions, transaction_hash_func, detectWitness) {
   if (transactions.length === 0) return Buffer.from('0000000000000000000000000000000000000000000000000000000000000000', 'hex')
-  const forWitness = txesHaveWitnessCommit(transactions);
+  const forWitness = detectWitness ? txesHaveWitnessCommit(transactions) : false;
   const hashes = transactions.map(transaction => transaction_hash_func(transaction, forWitness));
   const rootHash = fastMerkleRoot(hashes, hash256);
   return forWitness ? hash256_3(Buffer.concat([rootHash, transactions[0].ins[0].witness[0]])) : rootHash;
@@ -175,7 +175,7 @@ module.exports.RavenBlockTemplate = function(rpcData, poolAddress) {
   };
 };
 
-function update_merkle_root_hash(offset, payload, blob_in, blob_out, transaction_hash_func) {
+function update_merkle_root_hash(offset, payload, blob_in, blob_out, transaction_hash_func, detectWitness) {
   const nTransactions = varuint.decode(blob_in, offset);
   offset += varuint.decode.bytes;
   let transactions = [];
@@ -184,7 +184,7 @@ function update_merkle_root_hash(offset, payload, blob_in, blob_out, transaction
     transactions.push(tx);
     offset += tx.byteLength();
   }
-  getMerkleRoot(transactions, transaction_hash_func).copy(blob_out, 4 + 32);
+  getMerkleRoot(transactions, transaction_hash_func, detectWitness).copy(blob_out, 4 + 32);
 };
 
 module.exports.blockHashBuff = function(blobBuffer) {
@@ -197,12 +197,12 @@ module.exports.blockHashBuff3 = function(blobBuffer) {
 
 module.exports.convertRavenBlob = function(blobBuffer) {
   let header = blobBuffer.slice(0, 80);
-  update_merkle_root_hash(80 + 8 + 32, false, blobBuffer, header, transaction_hash);
+  update_merkle_root_hash(80 + 8 + 32, false, blobBuffer, header, transaction_hash, true);
   return module.exports.blockHashBuff(header);
 };
 
 module.exports.constructNewRavenBlob = function(blockTemplate, nonceBuff, mixhashBuff) {
-  update_merkle_root_hash(80 + 8 + 32, false, blockTemplate, blockTemplate, transaction_hash);
+  update_merkle_root_hash(80 + 8 + 32, false, blockTemplate, blockTemplate, transaction_hash, true);
   nonceBuff.copy  (blockTemplate, 80, 0, 8);
   mixhashBuff.copy(blockTemplate, 88, 0, 32);
   return blockTemplate;
@@ -239,24 +239,24 @@ module.exports.RtmBlockTemplate = function(rpcData, poolAddress) {
 
 module.exports.convertRtmBlob = function(blobBuffer) {
   let header = blobBuffer.slice(0, 80);
-  update_merkle_root_hash(80, true, blobBuffer, header, transaction_hash);
+  update_merkle_root_hash(80, true, blobBuffer, header, transaction_hash, true);
   return header;
 };
 
 module.exports.convertKcnBlob = function(blobBuffer) {
   let header = blobBuffer.slice(0, 80);
-  update_merkle_root_hash(80, false, blobBuffer, header, transaction_hash3);
+  update_merkle_root_hash(80, false, blobBuffer, header, transaction_hash3, false);
   return header;
 };
 
 module.exports.constructNewRtmBlob = function(blockTemplate, nonceBuff) {
-  update_merkle_root_hash(80, true, blockTemplate, blockTemplate, transaction_hash);
+  update_merkle_root_hash(80, true, blockTemplate, blockTemplate, transaction_hash, true);
   nonceBuff.copy(blockTemplate, 76, 0, 4);
   return blockTemplate;
 };
 
 module.exports.constructNewKcnBlob = function(blockTemplate, nonceBuff) {
-  update_merkle_root_hash(80, false, blockTemplate, blockTemplate, transaction_hash3);
+  update_merkle_root_hash(80, false, blockTemplate, blockTemplate, transaction_hash3, false);
   nonceBuff.copy(blockTemplate, 76, 0, 4);
   return blockTemplate;
 };
