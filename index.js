@@ -69,7 +69,7 @@ function getMerkleRoot(transactions, transaction_hash_func, detectWitness) {
   const forWitness = detectWitness ? txesHaveWitnessCommit(transactions) : false;
   const hashes = transactions.map(transaction => transaction_hash_func(transaction, forWitness));
   const rootHash = fastMerkleRoot(hashes, hash256);
-  return forWitness ? hash256_3(Buffer.concat([rootHash, transactions[0].ins[0].witness[0]])) : rootHash;
+  return forWitness ? hash256(Buffer.concat([rootHash, transactions[0].ins[0].witness[0]])) : rootHash;
 }
 
 let last_epoch_number;

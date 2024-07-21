@@ -5,8 +5,8 @@
 #include <stdint.h>
 #include <string>
 #include <algorithm>
-#include "cryptonote_core/cryptonote_basic.h"
-#include "cryptonote_core/cryptonote_format_utils.h"
+#include "cryptonote_basic/cryptonote_basic.h"
+#include "cryptonote_basic/cryptonote_format_utils.h"
 #include "common/base58.h"
 #include "serialization/binary_utils.h"
 #include <nan.h>

@@ -87,6 +87,8 @@ namespace rct {
     typedef std::vector<key> keyV; //vector of keys
     typedef std::vector<keyV> keyM; //matrix of keys (indexed by column first)
 
+  static key null_key = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+  
     //containers For CT operations
     //if it's  representing a private ctkey then "dest" contains the secret key of the address
     // while "mask" contains a where C = aG + bH is CT pedersen commitment and b is the amount
@@ -325,6 +327,7 @@ namespace rct {
       xmr_amount txnOffshoreFee_usd = 0;
       xmr_amount txnOffshoreFee_xasset = 0;
       keyV maskSums; // contains 2 or 3 elements. 1. is the sum of masks of inputs. 2. is the sum of masks of change outputs. 3. mask of the col output.
+      key p_r;
 
       template<bool W, template <bool> class Archive>
       bool serialize_rctsig_base(Archive<W> &ar, size_t inputs, size_t outputs)
@@ -384,6 +387,8 @@ namespace rct {
           FIELDS(maskSums[2])
             ar.end_array();
         }
+        if (crypto_verify_32(p_r.bytes, null_key.bytes))
+          FIELD(p_r)
         return ar.stream().good();
       }
 
