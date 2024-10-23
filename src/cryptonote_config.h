@@ -8,6 +8,8 @@
 #define HF_VERSION_XASSET_FEES_V2       17
 #define HF_VERSION_HAVEN2               18
 #define HF_VERSION_USE_COLLATERAL       20
+#define HF_VERSION_ENABLE_N_OUTS         2
+#define TRANSACTION_VERSION_N_OUTS       3
 
 // UNLOCK TIMES
 #define TX_V6_OFFSHORE_UNLOCK_BLOCKS                    21*720  // 21 day unlock time
