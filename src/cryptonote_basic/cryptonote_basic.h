@@ -1097,7 +1097,7 @@ namespace cryptonote
       if (blob_type == BLOB_TYPE_CRYPTONOTE_XHV) {
         FIELD(pricing_record)
       } else if (blob_type == BLOB_TYPE_CRYPTONOTE_SALVIUM) {
-        if (major_version >= 2) FIELD(salvium_pricing_record)
+        if (major_version >= 255) FIELD(salvium_pricing_record)
       } else if (blob_type == BLOB_TYPE_CRYPTONOTE_ZEPHYR) {
         if (major_version >= 6)
         {
